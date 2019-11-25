@@ -1,7 +1,6 @@
 package wordwrap
 
 import (
-	"bytes"
 	"unicode"
 )
 
@@ -13,61 +12,75 @@ import (
 // long word.
 func WrapString(s string, lim uint) string {
 	// Initialize a buffer with a slightly larger size to account for breaks
-	init := make([]byte, 0, len(s))
-	buf := bytes.NewBuffer(init)
+	var buf string
 
 	var current uint
-	var wordBuf, spaceBuf bytes.Buffer
+	var wordBuf, spaceBuf string
+	var ansi bool
 
 	for _, char := range s {
-		if char == '\n' {
-			if wordBuf.Len() == 0 {
-				if current+uint(spaceBuf.Len()) > lim {
+		if char == '\x1B' {
+			if len(spaceBuf) > 0 || len(wordBuf) > 0 {
+				current += uint(len(spaceBuf) + len(wordBuf))
+				buf += spaceBuf
+				spaceBuf = ""
+				buf += wordBuf
+				wordBuf = ""
+			}
+			buf += string(char)
+			ansi = true
+		} else if ansi {
+			buf += string(char)
+			if (char >= 0x40 && char <= 0x5a) || (char >= 0x61 && char <= 0x7a) {
+				ansi = false
+			}
+		} else if char == '\n' {
+			if len(wordBuf) == 0 {
+				if current+uint(len(spaceBuf)) > lim {
 					current = 0
 				} else {
-					current += uint(spaceBuf.Len())
-					spaceBuf.WriteTo(buf)
+					current += uint(len(spaceBuf))
+					buf += spaceBuf
 				}
-				spaceBuf.Reset()
+				spaceBuf = ""
 			} else {
-				current += uint(spaceBuf.Len() + wordBuf.Len())
-				spaceBuf.WriteTo(buf)
-				spaceBuf.Reset()
-				wordBuf.WriteTo(buf)
-				wordBuf.Reset()
+				current += uint(len(spaceBuf) + len(wordBuf))
+				buf += spaceBuf
+				spaceBuf = ""
+				buf += wordBuf
+				wordBuf = ""
 			}
-			buf.WriteRune(char)
+			buf += string(char)
 			current = 0
 		} else if unicode.IsSpace(char) {
-			if spaceBuf.Len() == 0 || wordBuf.Len() > 0 {
-				current += uint(spaceBuf.Len() + wordBuf.Len())
-				spaceBuf.WriteTo(buf)
-				spaceBuf.Reset()
-				wordBuf.WriteTo(buf)
-				wordBuf.Reset()
+			if len(spaceBuf) == 0 || len(wordBuf) > 0 {
+				current += uint(len(spaceBuf) + len(wordBuf))
+				buf += spaceBuf
+				spaceBuf = ""
+				buf += wordBuf
+				wordBuf = ""
 			}
 
-			spaceBuf.WriteRune(char)
+			spaceBuf += string(char)
 		} else {
+			wordBuf += string(char)
 
-			wordBuf.WriteRune(char)
-
-			if current+uint(spaceBuf.Len()+wordBuf.Len()) > lim && uint(wordBuf.Len()) < lim {
-				buf.WriteRune('\n')
+			if current+uint(len(spaceBuf)+len(wordBuf)) > lim && uint(len(wordBuf)) < lim {
+				buf += "\n"
 				current = 0
-				spaceBuf.Reset()
+				spaceBuf = ""
 			}
 		}
 	}
 
-	if wordBuf.Len() == 0 {
-		if current+uint(spaceBuf.Len()) <= lim {
-			spaceBuf.WriteTo(buf)
+	if len(wordBuf) == 0 {
+		if current+uint(len(spaceBuf)) <= lim {
+			buf += spaceBuf
 		}
 	} else {
-		spaceBuf.WriteTo(buf)
-		wordBuf.WriteTo(buf)
+		buf += spaceBuf
+		buf += wordBuf
 	}
 
-	return buf.String()
+	return buf
 }

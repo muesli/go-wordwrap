@@ -1,1 +1,3 @@
-module github.com/mitchellh/go-wordwrap
+module github.com/muesli/go-wordwrap
+
+go 1.13
